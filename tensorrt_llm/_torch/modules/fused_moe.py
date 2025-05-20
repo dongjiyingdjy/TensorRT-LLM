@@ -79,6 +79,28 @@ class RenormalizeMoeRoutingMethod(BaseMoeRoutingMethod):
         return topk_indices.to(torch.int32), torch.nn.functional.softmax(
             topk_values.float(), dim=-1)
 
+class CyclicMoeRoutingMethod(BaseMoeRoutingMethod):
+    def __init__(self, top_k: int, num_experts: int):
+        super().__init__()
+        self.top_k = top_k
+        self.num_experts = num_experts
+
+    def apply(self, router_logits: torch.Tensor) -> (torch.Tensor, torch.Tensor):
+        # 获取输入形状
+        num_tokens = router_logits.shape[0]
+        
+        # 创建循环的专家索引
+        # 使用 arange 创建 0 到 num_experts-1 的序列，然后重复到需要的长度
+        expert_indices = torch.arange(self.num_experts, device=router_logits.device)
+        expert_indices = expert_indices.repeat((num_tokens * self.top_k + self.num_experts - 1) // self.num_experts)
+        expert_indices = expert_indices[:num_tokens * self.top_k]
+        expert_indices = expert_indices.view(num_tokens, self.top_k)
+        
+        # 创建均匀的权重
+        weights = torch.ones_like(expert_indices, dtype=torch.float32) / self.top_k
+        
+        return expert_indices.to(torch.int32), weights
+
 
 class Llama4RenormalizeMoeRoutingMethod(BaseMoeRoutingMethod):
 
@@ -294,7 +316,9 @@ class FusedMoE(nn.Module):
 
         super().__init__()
         self.routing_method = routing_method
+
         self.num_experts = num_experts
+        self.fake_routing_method = CyclicMoeRoutingMethod(top_k=self.routing_method.experts_per_token, num_experts=self.num_experts)
         self.hidden_size = hidden_size
         self.intermediate_size = intermediate_size
         self.weight_loading_mode = weight_loading_mode
@@ -702,7 +726,11 @@ class FusedMoE(nn.Module):
 
         use_fp8_block_scaling = False
 
+        # import pdb; pdb.set_trace()
         token_selected_experts, token_final_scales = self.routing_method.apply(
+            router_logits)
+        
+        token_selected_experts, token_final_scales = self.fake_routing_method.apply(
             router_logits)
 
         assert token_selected_experts.shape[
