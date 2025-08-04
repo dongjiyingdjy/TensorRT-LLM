@@ -22,7 +22,7 @@ set(CMAKE_CUDA_STANDARD 17)
 set(CMAKE_CUDA_ARCHITECTURES 89-real 90a-real)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-option(BUILD_XQA_TESTS "Build XQA tests" OFF)
+option(BUILD_XQA_TESTS "Build XQA tests" ON)
 
 # todo: remove include_directories link_directories and link libs like
 # CUDA::cuda_driver CUDA::cudart CUDA::nvrtc
@@ -47,6 +47,32 @@ set(CMAKE_CUDA_FLAGS_RELEASE
 set(CMAKE_CUDA_FLAGS_DEBUG "${CMAKE_CUDA_FLAGS_DEBUG} -O0 -G -keep")
 # add_definitions(-DSPEC_DEC) set(CMAKE_CUDA_FLAGS_DEBUG
 # "${CMAKE_CUDA_FLAGS_RELEASE}")
+
+# add_definitions(-DSPEC_DEC=1)
+option(SPEC_DEC "Enable SPEC_DEC" OFF)
+if(SPEC_DEC)
+  message(STATUS "spec dec == 1")
+  add_definitions(-DSPEC_DEC=1)
+  add_definitions(-DSTATIC_NB_K_HEADS=0)
+  add_definitions(-DHEAD_ELEMS=128)
+  add_definitions(-DHEAD_GRP_SIZE=16)
+  add_definitions(-DBEAM_WIDTH=1)
+  add_definitions(-DCACHE_ELEM_ENUM=2)
+  add_definitions(-DALLOW_MULTI_BLOCK_MODE=1)
+  add_definitions(-DTOKENS_PER_PAGE=32)
+  add_definitions(-DUSE_PAGED_KV_CACHE=1)
+  add_definitions(-DSHORT_SEQ_OPT=1)
+  add_definitions(-DSLIDING_WINDOW=0)
+  add_definitions(-DENABLE_PDL=0)
+  add_definitions(-DUSE_INPUT_KV=0)
+  add_definitions(-DLOW_PREC_OUTPUT=0)
+  add_definitions(-DUSE_CUSTOM_BARRIER=1)
+  add_definitions(-DOPTIMIZE_FOR_LATENCY=1)
+  add_definitions(-DINPUT_FP16=1)
+  add_definitions(-DUSE_KV_CACHE=1)
+  add_definitions(-DUSE_BEAM_SEARCH=0)
+  add_definitions(-DGRP_LOAD_V=1)
+endif()
 
 set(XQA_SOURCES
     "cuda_hint.cuh"

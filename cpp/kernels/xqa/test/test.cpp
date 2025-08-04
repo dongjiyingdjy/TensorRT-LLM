@@ -559,7 +559,7 @@ void runTest(uint32_t batchSize, uint32_t seqLen, bool testPerf, bool refCheck, 
         ctxLenList.prefetch(dev, stream);
 #if USE_PAGED_KV_CACHE
         pageListBuf.prefetch(dev, stream);
-#endif
+#endif // USE_PAGED_KV_CACHE
 #if BEAM_WIDTH > 1
         cacheIndir.prefetch(dev, stream);
 #endif
@@ -599,16 +599,16 @@ void runTest(uint32_t batchSize, uint32_t seqLen, bool testPerf, bool refCheck, 
         launchMLA(prop, qSeqLen, qScale,
 #if SPEC_DEC
             &output[0][0][0][0], &qHeads[0][0][0][0],
-#else
+#else // SPEC_DEC
             &output[0][0][0], &qHeads[0][0][0],
-#endif
+#endif // SPEC_DEC
             cacheHeads.get(),
 #if USE_PAGED_KV_CACHE
             pageListArg,
-#endif
+#endif // USE_PAGED_KV_CACHE
             maxSeqLen, &seqLenList[0][0], batchSize, kvCacheScale.get(), semaphores.get(), scratch, stream);
     };
-#else
+#else // IS_MLA
     auto runKernel = [&]()
     {
         auto const launchFunc = useQGMMA ? &launchHopperF8MHA : &launchMHA;
@@ -617,36 +617,36 @@ void runTest(uint32_t batchSize, uint32_t seqLen, bool testPerf, bool refCheck, 
         SpecDecParams const specDecParams{.qSeqLen = qSeqLen,
             .qCuSeqLens = reinterpret_cast<uint32_t const*>(deviceCuQSeqLen),
             .mask = reinterpret_cast<MaskType const*>(devicePackedMask)};
-#endif
+#endif // SPEC_DEC
         launchFunc(prop, nbKHeads,
 #if SLIDING_WINDOW
             slidingWinSize,
-#endif
+#endif // SLIDING_WINDOW
             qScale,
 #if SPEC_DEC
             &output[0][0][0][0],
-#else
+#else // SPEC_DEC
             &output[0][0][0],
-#endif
+#endif // SPEC_DEC
 #if LOW_PREC_OUTPUT
             rcpOutScale.get(),
-#endif
+#endif // LOW_PREC_OUTPUT
 #if USE_INPUT_KV
             &qkvHeads[0][0][0],
 #if ROPE_STYLE != 0
             ropeCosSin.get(),
-#endif
-#else
+#endif // ROPE_STYLE
+#else // USE_INPUT_KV
 #if SPEC_DEC
             &qHeads[0][0][0][0],
-#else
+#else // SPEC_DEC
             &qHeads[0][0][0],
-#endif
-#endif
+#endif // SPEC_DEC
+#endif // USE_INPUT_KV
             cacheHeads.get(),
 #if USE_PAGED_KV_CACHE
             pageListArg,
-#endif
+#endif // USE_PAGED_KV_CACHE
             maxSeqLen, &seqLenList[0][0],
 #if BEAM_WIDTH > 1
             beamSearchParams,
@@ -731,7 +731,7 @@ void runTest(uint32_t batchSize, uint32_t seqLen, bool testPerf, bool refCheck, 
         }
         float const tops = headGrpSize * qSeqLen * float(seqLen) * (validElemsPerKHead + validElemsPerVHead) * 2
             * nbKHeads * batchSize / (ms * 1E-3F) * 1E-12F;
-        printf("dramSolRatio: %f%% (%f ms, TOPS = %f)\n", dramSolRatio * 100, ms, tops);
+        printf("dramSolRatio: %f%% (%f ms, TOPS = %f, headGrpSize = %d, qSeqLen = %d, seqLen = %d, validElemsPerKHead = %d, validElemsPerVHead = %d, nbKHeads = %d, batchSize = %d)\n", dramSolRatio * 100, ms, tops, headGrpSize, qSeqLen, seqLen, validElemsPerKHead, validElemsPerVHead, nbKHeads, batchSize);
     }
     if (refCheck)
     {
@@ -1000,14 +1000,14 @@ void runTest(uint32_t batchSize, uint32_t seqLen, bool testPerf, bool refCheck, 
 }
 
 #if SPEC_DEC
-constexpr bool runPerfTest = false;
-constexpr bool runCheckTest = true;
+constexpr bool runPerfTest = true;
+constexpr bool runCheckTest = false;
 
 #if IS_MLA
 TEST(RefCheck, mla)
 {
     // runTest<1, headGrpSize, 2>(1, 2, runPerfTest, runCheckTest, true, true);
-    runTest<1, headGrpSize, 1>(32, 200, runPerfTest, runCheckTest, true, true);
+    runTest<1, headGrpSize, 2>(32, 200, runPerfTest, runCheckTest, true, true);
     runTest<1, headGrpSize, 2>(32, 200, runPerfTest, runCheckTest, true, true);
     runTest<1, headGrpSize, 2>(2, 1000, runPerfTest, runCheckTest, true, true);
     runTest<1, headGrpSize, 13>(2, 257, runPerfTest, runCheckTest, true, true);
@@ -1017,27 +1017,18 @@ TEST(RefCheck, mla)
 #ifdef SPEC_Q_SEQ_LEN
 #define Q_SEQ_LEN SPEC_Q_SEQ_LEN
 #else
-#define Q_SEQ_LEN 62
+#define Q_SEQ_LEN 1
 #endif
 
 TEST(RefCheck, llama_V2_70b_3)
 {
-    // runTest<2, headGrpSize, 12>(2, 97, false, true, true, true);
-    if constexpr (Q_SEQ_LEN <= 13)
-    {
-        runTest<1, HEAD_GROUP_SIZE, Q_SEQ_LEN>(1, 13, runPerfTest, runCheckTest);
-    }
-    runTest<4, HEAD_GROUP_SIZE, Q_SEQ_LEN>(8, 1128, runPerfTest, runCheckTest);
-    runTest<2, HEAD_GROUP_SIZE, Q_SEQ_LEN>(1, 1128, runPerfTest, runCheckTest);
-    runTest<2, HEAD_GROUP_SIZE, Q_SEQ_LEN>(2, 1128, runPerfTest, runCheckTest);
-    runTest<4, HEAD_GROUP_SIZE, Q_SEQ_LEN>(1, 1128, runPerfTest, runCheckTest);
-    runTest<4, HEAD_GROUP_SIZE, Q_SEQ_LEN>(4, 1128, runPerfTest, runCheckTest);
-    runTest<4, HEAD_GROUP_SIZE, Q_SEQ_LEN>(8, 1128, runPerfTest, runCheckTest);
-    runTest<8, HEAD_GROUP_SIZE, Q_SEQ_LEN>(8, 256, runPerfTest, runCheckTest);
-    runTest<8, HEAD_GROUP_SIZE, Q_SEQ_LEN>(8, 512, runPerfTest, runCheckTest);
-    runTest<8, HEAD_GROUP_SIZE, Q_SEQ_LEN>(8, 1028, runPerfTest, runCheckTest);
-    runTest<8, HEAD_GROUP_SIZE, Q_SEQ_LEN>(8, 2048, runPerfTest, runCheckTest);
-    runTest<8, HEAD_GROUP_SIZE, Q_SEQ_LEN>(8, 4096, runPerfTest, runCheckTest);
+
+    runTest<1, 16, 2>(1, 27000, runPerfTest, runCheckTest, true, true);
+    runTest<1, 16, 2>(2, 27000, runPerfTest, runCheckTest, true, true);
+    runTest<1, 16, 2>(4, 27000, runPerfTest, runCheckTest, true, true);
+    runTest<1, 16, 2>(8, 27000, runPerfTest, runCheckTest, true, true);
+    runTest<1, 16, 2>(16, 27000, runPerfTest, runCheckTest, true, true);
+    runTest<1, 16, 2>(32, 27000, runPerfTest, runCheckTest, true, true);
 }
 #endif
 
@@ -1084,18 +1075,12 @@ TEST(Perf, mla_tracing)
 #else
 TEST(RefCheck, llama_V2_70b)
 {
-    // runTest<1>(1, 2, false, true, true, true);
-    runTest<2>(2, 2, false, true);
-    runTest<2>(2, 15, false, true);
-    runTest<2>(2, 256, false, true);
-    runTest<2>(2, 514, false, true);
-    runTest<1>(1, 4096, false, true);
-#if SLIDING_WINDOW
-    runTest<2>(2, 4096, false, true, false, false, ~0, 256);
-    runTest<2>(2, 400, false, true, false, false, ~0U, 256);
-#endif
-    runTest<8>(120, 367, false, true);
-    // runTest<8>(1792, 2048, false, true);
+    runTest<1>(1, 27000, true, false, true);
+    runTest<1>(2, 27000, true, false, true);
+    runTest<1>(4, 27000, true, false, true);
+    runTest<1>(8, 27000, true, false, true);
+    runTest<1>(16, 27000, true, false, true);
+    runTest<1>(32, 27000, true, false, true);
 }
 
 TEST(Perf, tracing_long)
