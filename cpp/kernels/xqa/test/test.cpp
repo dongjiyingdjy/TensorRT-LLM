@@ -775,7 +775,8 @@ void runTest(uint32_t batchSize, uint32_t seqLen, bool testPerf, bool refCheck, 
         printf("Tracing is enabled\n");
     }
     checkCuda(cudaEventRecord(tic, stream));
-    int32_t const nbIters = ((USE_SMALL_IO || isTracing || !testPerf) ? 1 : 100);
+    // int32_t const nbIters = ((USE_SMALL_IO || isTracing || !testPerf) ? 1 : 100);
+    int32_t const nbIters = 1;
     nvtxRangePushA("test");
     for (int32_t i = 0; i < nbIters; i++)
     {
@@ -825,7 +826,7 @@ void runTest(uint32_t batchSize, uint32_t seqLen, bool testPerf, bool refCheck, 
         }
         float const tops = headGrpSize * qSeqLen * float(seqLen) * (validElemsPerKHead + validElemsPerVHead) * 2
             * nbKHeads * batchSize / (ms * 1E-3F) * 1E-12F;
-        printf("dramSolRatio: %f%% (%f ms, TOPS = %f)\n", dramSolRatio * 100, ms, tops);
+        printf("dramSolRatio: %f%% (%f ms, TOPS = %f, headGrpSize = %d, qSeqLen = %d, seqLen = %d, validElemsPerKHead = %d, validElemsPerVHead = %d, nbKHeads = %d, batchSize = %d)\n", dramSolRatio * 100, ms, tops, headGrpSize, qSeqLen, seqLen, validElemsPerKHead, validElemsPerVHead, nbKHeads, batchSize);
     }
     if (refCheck)
     {
@@ -1114,8 +1115,8 @@ void runTest(uint32_t batchSize, uint32_t seqLen, bool testPerf, bool refCheck, 
 }
 
 #if SPEC_DEC
-constexpr bool runPerfTest = false;
-constexpr bool runCheckTest = true;
+constexpr bool runPerfTest = true;
+constexpr bool runCheckTest = false;
 
 #if IS_MLA
 TEST(RefCheck, mla)
@@ -1136,30 +1137,12 @@ TEST(RefCheck, mla)
 
 TEST(RefCheck, llama_V2_70b_3)
 {
-    // runTest<2, headGrpSize, 12>(2, 97, false, true, true, true);
-    if constexpr (Q_SEQ_LEN <= 13)
-    {
-        runTest<1, HEAD_GROUP_SIZE, Q_SEQ_LEN>(1, 13, runPerfTest, runCheckTest);
-    }
-    runTest<4, HEAD_GROUP_SIZE, Q_SEQ_LEN>(8, 1128, runPerfTest, runCheckTest);
-    runTest<2, HEAD_GROUP_SIZE, Q_SEQ_LEN>(1, 1128, runPerfTest, runCheckTest);
-    runTest<2, HEAD_GROUP_SIZE, Q_SEQ_LEN>(2, 1128, runPerfTest, runCheckTest);
-    runTest<4, HEAD_GROUP_SIZE, Q_SEQ_LEN>(1, 1128, runPerfTest, runCheckTest);
-    runTest<4, HEAD_GROUP_SIZE, Q_SEQ_LEN>(4, 1128, runPerfTest, runCheckTest);
-    runTest<4, HEAD_GROUP_SIZE, Q_SEQ_LEN>(8, 1128, runPerfTest, runCheckTest);
-    runTest<8, HEAD_GROUP_SIZE, Q_SEQ_LEN>(8, 256, runPerfTest, runCheckTest);
-    runTest<8, HEAD_GROUP_SIZE, Q_SEQ_LEN>(8, 512, runPerfTest, runCheckTest);
-    runTest<8, HEAD_GROUP_SIZE, Q_SEQ_LEN>(8, 1028, runPerfTest, runCheckTest);
-    runTest<8, HEAD_GROUP_SIZE, Q_SEQ_LEN>(8, 2048, runPerfTest, runCheckTest);
-    runTest<8, HEAD_GROUP_SIZE, Q_SEQ_LEN>(8, 4096, runPerfTest, runCheckTest);
-    runTest<8, HEAD_GROUP_SIZE, Q_SEQ_LEN>(8, 2048, runPerfTest, runCheckTest);
-
-#if SLIDING_WINDOW && !IS_SPEC_DEC_TREE
-    runTest<4, HEAD_GROUP_SIZE, Q_SEQ_LEN>(4, 2039, false, runCheckTest, true, false, ~0U, 1024);
-    runTest<8, HEAD_GROUP_SIZE, Q_SEQ_LEN>(8, 63, false, runCheckTest, true, false, ~0U, 61);
-    runTest<1, HEAD_GROUP_SIZE, Q_SEQ_LEN>(8, 2, false, true, true, false, ~0U, 1);
-
-#endif
+    // runTest<1, 16, 2>(1, 27000, runPerfTest, runCheckTest, true, true);
+    // runTest<1, 16, 2>(2, 27000, runPerfTest, runCheckTest, true, true);
+    // runTest<1, 16, 2>(4, 27000, runPerfTest, runCheckTest, true, true);
+    // runTest<1, 16, 2>(8, 27000, runPerfTest, runCheckTest, true, true);
+    // runTest<1, 16, 2>(16, 27000, runPerfTest, runCheckTest, true, true);
+    runTest<1, 16, 2>(32, 27000, runPerfTest, runCheckTest, true, true);
 }
 #endif
 

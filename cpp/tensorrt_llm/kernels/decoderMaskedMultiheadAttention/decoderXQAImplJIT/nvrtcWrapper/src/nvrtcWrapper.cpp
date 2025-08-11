@@ -210,6 +210,7 @@ tllmXqaJitStatus getMacroFlags(tllmXqaJitContext const* context, std::vector<std
     macros["USE_INPUT_KV"] = context->use_input_kv ? "1" : "0";
     macros["ROPE_STYLE"] = std::to_string(int(context->rope_style));
     macros["IS_SPEC_DEC_TREE"] = context->is_spec_dec_tree ? "1" : "0";
+    macros["IS_MULTI_BLOCK_MODE"] = context->run_multi_block_mode ? "1" : "0";
 
     // Without these macros, NVRTC uses precompiled headers for cuda_fp16.h etc.
     // Linking might fail due to ABI incompatibility.

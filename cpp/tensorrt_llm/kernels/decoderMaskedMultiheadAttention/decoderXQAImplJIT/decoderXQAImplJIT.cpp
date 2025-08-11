@@ -454,6 +454,7 @@ void DecoderXQAImplJIT::runImpl(XQAParams const& xqaParams, KVCacheBuffer const&
                 multi_block = computeMultiBlockCount(xqaParams, xqaParams.batch_size, multiprocessor_count);
             }
         }
+        xqaParams.run_multi_block_mode = multi_block > 1;
         uint32_t const nbKVHeads = xqaParams.num_kv_heads;
         auto const gridDim = (isGMMAKernel ? dim3{specDecBlocks, multi_block, nbKVHeads * xqaParams.batch_size}
                                            : dim3{multi_block, nbKVHeads, xqaParams.batch_size});

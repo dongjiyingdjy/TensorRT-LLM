@@ -34,6 +34,7 @@
 #include "tma.h"
 
 #define DBG_PRINT 0
+#define SPEC_Q_SEQ_LEN 2
 
 #ifdef SPEC_Q_SEQ_LEN
 static_assert(SPEC_DEC, "SPEC_Q_SEQ_LEN is only supported for SPEC_DEC");
@@ -93,7 +94,7 @@ constexpr uint32_t gemm1NbWarps = gmmaWarpsPerGrp * gemm1NbGmmaGrps;
 constexpr uint32_t gemm1CtaTileNbTokens = gemm0CtaTileNbTokens;
 constexpr uint32_t mathHeadBytes = sizeof(Vec<MathElem, headElems>);
 constexpr uint32_t nbIOWarps = 4;
-constexpr uint32_t nbIOThrds = warp_size * nbIOWarps;
+// constexpr uint32_t nbIOThrds = warp_size * nbIOWarps;
 constexpr uint32_t multiBlockMinNbTilesPerCta = 1; // 3; // @fixme: need tuning
 constexpr uint32_t multiBlockMinNbTiles = multiBlockMinNbTilesPerCta * 2;
 constexpr uint32_t nbWarps = gemm0NbWarps + gemm1NbWarps + nbIOWarps;
@@ -740,12 +741,12 @@ CUBIN_EXPORT __global__
 #endif
     uint32_t const maxNbSubSeq = gridDim.y;
     uint32_t const idxSubSeq = blockIdx.y;
-    bool const isMultiBlockMode = (maxNbSubSeq > 1 && nbTilesInUse >= multiBlockMinNbTiles);
+    // bool const isMultiBlockMode = (maxNbSubSeq > 1 && nbTilesInUse >= multiBlockMinNbTiles);
     uint32_t const idxKTileInit = nbSkipLeadingTiles + idxSubSeq;
     uint32_t const idxVTileInit = idxKTileInit;
-    uint32_t const nbSubSeq = isMultiBlockMode ? mha::min(nbTilesInUse / multiBlockMinNbTilesPerCta, maxNbSubSeq) : 1;
+    uint32_t const nbSubSeq = IS_MULTI_BLOCK_MODE ? mha::min(nbTilesInUse / multiBlockMinNbTilesPerCta, maxNbSubSeq) : 1;
     static_assert(multiBlockMinNbTiles >= multiBlockMinNbTilesPerCta * 2);
-    assert(isMultiBlockMode == (nbSubSeq > 1));
+    assert(IS_MULTI_BLOCK_MODE == (nbSubSeq > 1));
     if (idxSubSeq >= nbSubSeq)
     {
         return;
@@ -1234,7 +1235,7 @@ CUBIN_EXPORT __global__
                 // gmma::wait_group should have already synchronized threads, so this may be unnecessary.
                 smem.gemm1WarpGrpBar.arrive_and_wait();
                 assert(idxXBuf == idxVBuf);
-                if (isMultiBlockMode)
+                if (IS_MULTI_BLOCK_MODE)
                 {
                     ScratchMem const scratchMem{scratch, maxNbSubSeq * nbKHeads * batchSize, nbInputSeqSplit};
                     uint32_t const idxSeq = nbKHeads * idxReq + idxHeadGrp;
@@ -1505,7 +1506,7 @@ CUBIN_EXPORT __global__
     {
         (&smem.qBar.produced)[tid].~CtaBarrier();
     }
-    if (!isMultiBlockMode)
+    if (!IS_MULTI_BLOCK_MODE)
     {
         return;
     }
@@ -3257,7 +3258,6 @@ void launchHopperF8MHA(cudaDeviceProp const& prop, uint32_t nbKHeads,
     // printf("smemSize = %u\n", hostSmemSize);
     uint32_t const nbVHeads = nbKHeads;
     uint32_t const nbQHeads = nbKHeads * headGrpSize;
-    uint32_t const nbQKVHeads = nbQHeads + nbKHeads + nbVHeads;
     uint32_t const nbSubSeqPerSeq = [&]() -> uint32_t
     {
         auto const env = std::getenv("XQA_NB_SUB_SEQ");

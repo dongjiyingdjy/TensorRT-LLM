@@ -25,7 +25,7 @@
 
 // nbQHeads / nbKHeads for MQA/GQA
 #ifndef HEAD_GRP_SIZE
-#define HEAD_GRP_SIZE 8
+#define HEAD_GRP_SIZE 16
 #endif
 
 #define IS_MLA (HEAD_GRP_SIZE == 128 && HEAD_ELEMS == 576)
@@ -61,6 +61,10 @@
 
 #if SPEC_DEC
 using MaskType = uint32_t;
+
+#ifndef IS_MULTI_BLOCK_MODE
+#define IS_MULTI_BLOCK_MODE 0
+#endif
 
 #ifndef M_TILESIZE
 #define M_TILESIZE 32
