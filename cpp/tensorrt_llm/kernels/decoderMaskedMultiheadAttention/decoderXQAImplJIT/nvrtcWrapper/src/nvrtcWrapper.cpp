@@ -129,6 +129,9 @@ tllmXqaJitStatus getMacroFlags(tllmXqaJitContext const* context, std::vector<std
     if (context->multi_query_tokens)
     {
         macros["SPEC_DEC"] = "1";
+        if (num_q_heads_over_kv * context->q_seq_len <= 32){
+            macros["SPEC_Q_SEQ_LEN"] = std::to_string(context->q_seq_len);
+        }
     }
     // MultiQueryToken kernels can handle either 16/32 for M direction per CTA.
     uint32_t const m_tilesize = [&context, num_q_heads_over_kv]() -> uint32_t
